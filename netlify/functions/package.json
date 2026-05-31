@@ -1,0 +1,25 @@
+{
+  "name": "netlify-functions",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "prisma generate --schema=./prisma/schema.prisma",
+    "build": "prisma generate --schema=./prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@netlify/functions": "^2.0.0",
+    "@prisma/client": "^5.8.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^9.0.0",
+    "prisma": "^5.8.0",
+    "qrcode": "^1.5.4",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.3.0"
+  }
+}

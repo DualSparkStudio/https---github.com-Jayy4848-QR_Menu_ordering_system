@@ -1,0 +1,13 @@
+# API redirects - All /api/* requests go to the main api function
+
+# Push notifications (separate functions)
+/api/push/subscribe /.netlify/functions/push-subscribe 200
+/api/push/send /.netlify/functions/push-send 200
+/api/push/worker /.netlify/functions/push-worker 200
+
+# Payments (separate functions)
+/api/payments/razorpay/create /.netlify/functions/payments-razorpay-create 200
+/api/payments/razorpay/verify /.netlify/functions/payments-razorpay-verify 200
+
+# Catch-all for all other /api/* requests -> route to main api function
+/api/* /.netlify/functions/api 200

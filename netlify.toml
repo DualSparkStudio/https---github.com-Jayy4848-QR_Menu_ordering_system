@@ -1,0 +1,55 @@
+[build]
+  command = "cd whole/shared && npm install && cd ../guest-app && npm install && npx prisma generate --schema=./prisma/schema.prisma && npm run build && cd ../../netlify/functions && npm install && npx prisma generate --schema=./prisma/schema.prisma && rm -rf node_modules/prisma node_modules/@prisma/engines netlify/functions/node_modules/prisma netlify/functions/node_modules/@prisma/engines && find . -name \"libquery_engine-*\" -not -name \"*rhel-openssl*\" -delete"
+  publish = "whole/guest-app/.next"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  external_node_modules = [
+    "@prisma/client",
+    ".prisma/client",
+    "bcryptjs",
+    "jsonwebtoken",
+    "uuid"
+  ]
+
+[build.processing]
+  skip_processing = false
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  NODE_VERSION = "18"
+  NPM_VERSION = "9"
+
+[[redirects]]
+  from = "/api/push/subscribe"
+  to = "/.netlify/functions/push-subscribe"
+  status = 200
+
+[[redirects]]
+  from = "/api/push/send"
+  to = "/.netlify/functions/push-send"
+  status = 200
+
+[[redirects]]
+  from = "/api/push/worker"
+  to = "/.netlify/functions/push-worker"
+  status = 200
+
+[[redirects]]
+  from = "/api/payments/razorpay/create"
+  to = "/.netlify/functions/payments-razorpay-create"
+  status = 200
+
+[[redirects]]
+  from = "/api/payments/razorpay/verify"
+  to = "/.netlify/functions/payments-razorpay-verify"
+  status = 200
+
+# Catch-all for all other /api/* requests -> route to main api function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api"
+  status = 200

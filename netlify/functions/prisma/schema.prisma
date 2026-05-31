@@ -1,0 +1,447 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============ RESTAURANT (Multi-tenant root) ============
+model Restaurant {
+  id                      String   @id @default(cuid())
+  name                    String
+  slug                    String   @unique
+  description             String?
+  address                 String
+  city                    String
+  state                   String
+  country                 String
+  zipCode                 String
+  phone                   String
+  email                   String
+  website                 String?
+  logo                    String?
+  banner                  String?
+  timezone                String   @default("Asia/Kolkata")
+  currency                String   @default("INR")
+  taxPercentage           Float    @default(5)
+  serviceChargePercentage Float    @default(0)
+  cgstPercentage          Float    @default(0)
+  sgstPercentage          Float    @default(0)
+  isOpen                  Boolean  @default(true)
+  openingHours            String?  // JSON: { mon: { open: "09:00", close: "22:00" }, ... }
+
+  tables        Table[]
+  categories    Category[]
+  menuItems     MenuItem[]
+  orders        Order[]
+  staff         Staff[]
+  payments      Payment[]
+  notifications Notification[]
+  coupons       Coupon[]
+  waiterCalls   WaiterCall[]
+  reviews       Review[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([slug])
+}
+
+// ============ TABLES ============
+model Table {
+  id           String  @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  tableNumber  String
+  section      String  @default("main") // main, outdoor, bar, private
+  capacity     Int     @default(4)
+  qrCode       String  @unique
+  qrCodeUrl    String?
+  status       String  @default("available") // available, occupied, reserved, maintenance
+  isActive     Boolean @default(true)
+
+  orders       Order[]
+  waiterCalls  WaiterCall[]
+  sessions     TableSession[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId])
+  @@index([qrCode])
+  @@index([status])
+}
+
+// ============ TABLE SESSIONS (guest scan) ============
+model TableSession {
+  id           String @id @default(cuid())
+  tableId      String
+  table        Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  sessionToken String  @unique
+  guestName    String?
+  guestPhone   String?
+  guestCount   Int     @default(1)
+  isActive     Boolean @default(true)
+  expiresAt    DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tableId])
+  @@index([sessionToken])
+}
+
+// ============ MENU CATEGORIES ============
+model Category {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  icon         String?
+  image        String?
+  displayOrder Int     @default(0)
+  isActive     Boolean @default(true)
+
+  items        MenuItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId])
+}
+
+// ============ MENU ITEMS ============
+model MenuItem {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  image        String?
+  basePrice    Float
+  currency     String  @default("INR")
+
+  isVegetarian Boolean @default(false)
+  isVegan      Boolean @default(false)
+  isGlutenFree Boolean @default(false)
+  spiceLevel   Int     @default(0) // 0=none, 1=mild, 2=medium, 3=hot
+  allergens    String? // JSON array
+  calories     Int?
+
+  isAvailable     Boolean @default(true)
+  isFeatured      Boolean @default(false)
+  preparationTime Int     @default(15) // minutes
+  displayOrder    Int     @default(0)
+
+  variants   MenuItemVariant[]
+  orderItems OrderItem[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([restaurantId])
+  @@index([categoryId])
+  @@index([isAvailable])
+}
+
+model MenuItemVariant {
+  id         String   @id @default(cuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  name       String  // "Size", "Add-ons"
+  options    String  // JSON: [{ label: "Large", price: 50 }, ...]
+  isRequired Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([menuItemId])
+}
+
+// ============ ORDERS ============
+model Order {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  tableId      String
+  table        Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  sessionId    String? // Session identifier for isolating orders per dining session
+  orderNumber  String @unique
+
+  // Guest info
+  guestName    String?
+  guestPhone   String?
+  guestCount   Int     @default(1)
+
+  items              OrderItem[]
+  specialInstructions String?
+
+  // Pricing
+  subtotal       Float
+  taxAmount      Float
+  serviceCharge  Float
+  cgstAmount     Float    @default(0)
+  sgstAmount     Float    @default(0)
+  discountAmount Float    @default(0)
+  totalAmount    Float
+
+  // Status
+  status        String @default("pending") // pending, confirmed, preparing, ready, served, completed, cancelled
+  paymentStatus String @default("pending") // pending, completed, failed, refunded
+
+  // Payment
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  // Coupon
+  couponId   String?
+  coupon     Coupon? @relation(fields: [couponId], references: [id])
+  couponCode String?
+
+  estimatedTime DateTime?
+  servedAt      DateTime?
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+
+  notifications Notification[]
+  review        Review?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([sessionId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  menuItemId  String
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+
+  quantity            Int
+  price               Float
+  selectedVariants    String? // JSON
+  specialInstructions String?
+  status              String  @default("pending") // pending, preparing, ready, served
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([menuItemId])
+}
+
+// ============ WAITER CALLS ============
+model WaiterCall {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  tableId      String
+  table        Table  @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  type         String @default("waiter") // waiter, bill, water, napkins, other
+  note         String?
+  status       String @default("pending") // pending, acknowledged, resolved
+
+  assignedStaffId String?
+  assignedStaff   Staff?  @relation(fields: [assignedStaffId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  resolvedAt DateTime?
+
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([status])
+}
+
+// ============ PAYMENTS ============
+model Payment {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  amount        Float
+  currency      String @default("INR")
+  paymentMethod String // cash, upi, card, razorpay, stripe
+
+  razorpayOrderId       String?
+  razorpayPaymentId     String?
+  stripePaymentIntentId String?
+
+  status       String  @default("pending") // pending, completed, failed, refunded
+  refundAmount Float   @default(0)
+  refundStatus String?
+  refundReason String?
+  metadata     String? // JSON
+
+  orders Order[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([restaurantId])
+  @@index([status])
+}
+
+// ============ COUPONS ============
+model Coupon {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  code         String
+  description  String?
+  discountType String  @default("percentage") // percentage, fixed
+  discountValue Float
+  minOrderValue Float  @default(0)
+  maxDiscount   Float?
+  usageLimit    Int?
+  usedCount     Int    @default(0)
+  isActive      Boolean @default(true)
+  expiresAt     DateTime?
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, code])
+  @@index([restaurantId])
+}
+
+// ============ STAFF ============
+model Staff {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  name         String
+  email        String
+  phone        String
+  role         String // owner, manager, chef, waiter, cashier
+  passwordHash String
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+
+  waiterCalls WaiterCall[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([restaurantId, email])
+  @@index([restaurantId])
+  @@index([role])
+}
+
+// ============ NOTIFICATIONS ============
+model Notification {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  orderId  String?
+  order    Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  type    String // order_placed, order_status, payment_confirmed, waiter_called
+  title   String
+  message String
+  status  String @default("pending") // pending, sent, failed
+
+  recipientPhone String?
+  recipientEmail String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  sentAt    DateTime?
+
+  @@index([restaurantId])
+  @@index([orderId])
+  @@index([status])
+}
+
+// ============ REVIEWS ============
+model Review {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  orderId      String @unique
+  order        Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  foodRating    Int // 1-5
+  serviceRating Int // 1-5
+  comment       String?
+  guestName     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId])
+}
+
+// ============ PUSH SUBSCRIPTIONS ============
+model PushSubscription {
+  id           String  @id @default(cuid())
+  userId       String
+  userType     String  // admin, guest
+  restaurantId String?
+  tableId      String?
+  endpoint     String  @unique
+  keys         String  // JSON: { p256dh, auth }
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([userType])
+  @@index([isActive])
+}
+
+// ============ AUDIT LOGS ============
+model AuditLog {
+  id        String  @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String
+  changes   String? // JSON
+  userId    String?
+  userEmail String?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([userId])
+  @@index([createdAt])
+}

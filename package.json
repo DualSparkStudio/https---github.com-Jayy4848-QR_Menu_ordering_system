@@ -1,0 +1,27 @@
+{
+  "name": "resort-ordering-system",
+  "version": "1.0.0",
+  "description": "QR Menu Ordering System - Monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:app\"",
+    "dev:backend": "cd whole/backend && npm run dev",
+    "dev:app": "cd whole/guest-app && npm run dev:next",
+    "dev:admin": "cd whole/admin-dashboard && npm run dev",
+    "install:all": "npm install && cd whole/backend && npm install && cd ../guest-app && npm install && cd ../admin-dashboard && npm install",
+    "build:all": "cd whole/backend && npm run build && cd ../guest-app && npm run build && cd ../admin-dashboard && npm run build",
+    "sync:schemas": "node scripts/sync-prisma-schemas.js",
+    "prisma:generate": "npm run sync:schemas && cd whole/backend && npx prisma generate && cd ../guest-app && npx prisma generate && cd ../../netlify/functions && npx prisma generate",
+    "generate:vapid": "node scripts/generate-vapid-keys.js"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "concurrently": "^8.2.2",
+    "prisma": "^6.19.3"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "uuid": "^8.3.2",
+    "web-push": "^3.6.0"
+  }
+}
